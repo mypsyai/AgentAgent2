@@ -1,0 +1,28 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Go
+bin/
+
+# Rust
+target/
+
+# Artifacts / logs (keep out of git; store via artifact_store)
+artifact_store/
+*.log

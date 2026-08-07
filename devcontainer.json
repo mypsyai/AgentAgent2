@@ -1,0 +1,19 @@
+{
+  "name": "agent-build",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.22" },
+    "ghcr.io/devcontainers/features/rust:1": {}
+  },
+  "postCreateCommand": "bash scripts/setup.sh",
+  "remoteEnv": {
+    "WORKSPACE_DIR": "${containerWorkspaceFolder}"
+  },
+  "containerEnv": {
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1"
+  },
+  "runArgs": ["--cap-drop=ALL", "--security-opt=no-new-privileges"],
+  "//": "FLAG-3: base image/registry is host-specific. Egress should be restricted to package registries + declared APIs by the host network policy."
+}
