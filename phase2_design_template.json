@@ -1,0 +1,95 @@
+{
+  "artifact": "AgentAgent2 Design Template",
+  "phase": 2,
+  "version": "0.2-template",
+  "generated_utc": "2026-08-07T07:57:00Z",
+  "note": "Skeleton of the full design. Values marked <FILL> are completed in Phase 3. Items marked FLAG require an external decision/resource.",
+  "identity": {
+    "name": "AgentAgent2",
+    "role": "meta-agent: designs and builds other Claude agents to a verified quality bar",
+    "persona_traits": ["rigorous", "evidence-driven", "minimal-but-complete", "safety-first"],
+    "operating_instructions_file": "AGENTAGENT2.system.md"
+  },
+  "operating_loop": {
+    "phases": [
+      {"name": "INTENT", "inputs": "<FILL>", "outputs": "intent_model.json", "gate": null},
+      {"name": "PLAN", "inputs": "<FILL>", "outputs": "plan.json", "gate": "approval"},
+      {"name": "DESIGN", "inputs": "<FILL>", "outputs": "design.json", "gate": null},
+      {"name": "SCAFFOLD", "inputs": "<FILL>", "outputs": "project tree", "gate": null},
+      {"name": "IMPLEMENT", "inputs": "<FILL>", "outputs": "source files", "gate": null},
+      {"name": "VERIFY", "inputs": "<FILL>", "outputs": "verify_report.json", "gate": "hard"},
+      {"name": "EVALUATE", "inputs": "<FILL>", "outputs": "eval_report.json", "gate": "hard"},
+      {"name": "DELIVER", "inputs": "<FILL>", "outputs": "release bundle", "gate": null},
+      {"name": "DEBRIEF", "inputs": "<FILL>", "outputs": "debrief.json + token report", "gate": null}
+    ],
+    "state_machine_rules": "<FILL>"
+  },
+  "config_schema": {
+    "models": {"architect": "<FILL>", "worker": "<FILL>", "escalation_policy": "<FILL>"},
+    "autonomy": {"mode": "<FILL>", "approval_gates": "<FILL>", "destructive_action_policy": "<FILL>"},
+    "budgets": {"max_tokens_per_phase": "<FILL>", "max_tool_calls": "<FILL>", "wall_clock_hint": "<FILL>"},
+    "environment": {"sandbox": "<FILL>", "network_policy": "<FILL>", "reproducibility": "<FILL>"},
+    "quality_gates": {"format": "<FILL>", "lint": "<FILL>", "typecheck": "<FILL>", "test": "<FILL>", "coverage_min": "<FILL>", "eval_min_score": "<FILL>"}
+  },
+  "tools": {
+    "categories": ["filesystem", "shell", "search", "web", "vcs", "build_test", "package", "artifact"],
+    "manifest_file": "tools/tool_manifest.json",
+    "per_tool_fields": ["name", "purpose", "input_schema", "output", "permissions", "safety", "when_to_use", "when_not_to_use"],
+    "tools_to_define": [
+      "read_file", "write_file", "edit_file", "list_dir",
+      "run_shell", "run_tests", "run_linters",
+      "grep_search", "glob_search",
+      "web_search", "web_fetch",
+      "vcs_commit", "vcs_diff", "vcs_branch",
+      "pkg_install",
+      "artifact_store", "artifact_load",
+      "spawn_subagent", "message_subagent"
+    ]
+  },
+  "skills": {
+    "format": "Agent Skills (SKILL.md front-matter + body + optional scripts/resources)",
+    "invocation": "model-invoked by name/description match; progressive disclosure",
+    "catalog": [
+      "agent-scaffolding", "tool-design", "prompt-engineering", "eval-harness",
+      "code-quality-gates", "mcp-integration", "subagent-orchestration",
+      "context-memory", "safety-guardrails"
+    ],
+    "per_skill_fields": ["name", "description", "trigger", "procedure", "checklist", "outputs", "resources"]
+  },
+  "mcp": {
+    "manifest_file": "config/mcp.servers.json",
+    "servers_to_define": ["filesystem", "git", "github", "fetch", "browser", "database", "memory"],
+    "per_server_fields": ["name", "transport", "command_or_url", "capabilities", "scopes", "secrets_ref", "enabled_by_default"],
+    "notes": "FLAG: concrete endpoints/credentials are deployment-specific; manifest ships with safe defaults + placeholders."
+  },
+  "style_engine": {
+    "core_file": "style/STYLE_CORE.md",
+    "language_files": ["python.md", "typescript.md", "go.md", "rust.md", "bash.md"],
+    "core_principles_to_define": ["naming", "structure", "errors", "typing", "tests", "docs", "security", "dependencies", "commits"],
+    "per_language_fields": ["formatter", "linter", "typechecker", "test_framework", "layout", "idioms", "anti_patterns", "commands"]
+  },
+  "output_contracts": {
+    "schemas_dir": "design/schemas",
+    "schemas_to_define": ["agent_design.schema.json"],
+    "validation_rule": "artifacts MUST validate before phase transition"
+  },
+  "subagents": {
+    "roles_to_define": ["researcher", "architect", "coder", "reviewer", "tester"],
+    "per_role_fields": ["mission", "inputs", "outputs", "tools_allowed", "handoff"],
+    "orchestration_pattern": "<FILL>"
+  },
+  "memory": {
+    "artifacts": ["plan.md", "scratchpad.md", "decisions.md", "artifact_store/"],
+    "compaction_policy": "<FILL>"
+  },
+  "evaluation": {
+    "dimensions": ["task_success", "tool_call_correctness", "code_quality", "safety", "robustness", "cost"],
+    "harness_outputs": ["eval_report.json", "scoreboard.md"],
+    "thresholds": "<FILL>"
+  },
+  "open_flags": [
+    "FLAG-1: MCP credentials/endpoints are deployment-specific (ship placeholders).",
+    "FLAG-2: Exact model IDs depend on availability at deploy time (ship policy, not hard IDs).",
+    "FLAG-3: Container base image/registry is host-specific (ship devcontainer spec + defaults)."
+  ]
+}
