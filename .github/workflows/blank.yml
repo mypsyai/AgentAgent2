@@ -1,0 +1,15 @@
+name: Unzip Example
+
+on: [push]
+
+jobs:
+  unzip-file:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out your code so the runner has access to it
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Extract the zip file
+      - name: Unzip agentagent2-complete.zip
+        run: unzip agentagent2-complete.zip -d extracted/
