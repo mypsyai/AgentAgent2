@@ -1,0 +1,151 @@
+{
+  "phase": "VERIFY",
+  "timestamp_utc": "2026-08-10T10:40:00Z",
+  "agent": "AgentAgent2",
+  "session": "session 3 (catch-up, repair, expanded scope)",
+  "verdict": "pass",
+  "purpose": "Post-repair gate run. Supersedes the pre-repair baseline recorded earlier this session, which is retained below because it is the evidence for what the repair actually changed.",
+  "tooling": {
+    "ruff": "0.15.17",
+    "mypy": "1.20.2",
+    "pytest": "9.1.0",
+    "python": "3.11.15",
+    "pinned_in": "agentagent2-harness/requirements-dev.txt"
+  },
+  "targets": [
+    {
+      "target": "agentagent2-harness/",
+      "command": "agentagent2 gates --path .",
+      "checks": [
+        {
+          "name": "format",
+          "status": "pass",
+          "detail": "ruff format --check: 33 files already formatted."
+        },
+        {
+          "name": "lint",
+          "status": "pass",
+          "detail": "ruff check with E,F,I,UP,B,SIM,RUF,S,N,A,BLE selected: all checks passed."
+        },
+        {
+          "name": "typecheck",
+          "status": "pass",
+          "detail": "mypy --strict src: no issues in 19 source files."
+        },
+        {
+          "name": "tests",
+          "status": "pass",
+          "detail": "222 passed, 1 skipped (conditional missing-ruff branch), 223 collected."
+        },
+        {
+          "name": "coverage",
+          "status": "pass",
+          "detail": "90.1% of executable statements in src/ (threshold 85%)."
+        },
+        {
+          "name": "secrets",
+          "status": "pass",
+          "detail": "No findings outside tests/."
+        }
+      ]
+    },
+    {
+      "target": "spec package (repo root)",
+      "checks": [
+        {
+          "name": "json_parse",
+          "status": "pass",
+          "detail": "9/9 JSON artifacts parse."
+        },
+        {
+          "name": "schema_conformance",
+          "status": "pass",
+          "detail": "agentagent2.design.json satisfies agent_design.schema.json."
+        },
+        {
+          "name": "self_eval",
+          "status": "pass",
+          "detail": "overall=1.00 (threshold 0.90), safety=1.00 (threshold 1.00)."
+        },
+        {
+          "name": "template_gates_sh",
+          "status": "pass",
+          "detail": "bash -n clean; executed against an empty dir and a synthetic src/ project, both correct."
+        }
+      ]
+    }
+  ],
+  "baseline_before_repair": {
+    "format": "fail (16 of 33 files would be reformatted)",
+    "lint": "fail (65 errors)",
+    "typecheck": "fail (8 errors)",
+    "tests": "pass (193 passed, 1 skipped)",
+    "coverage": "pass (90.0%)",
+    "secrets": "pass",
+    "note": "75 findings total. All style/typing hygiene except one real defect: Config.workspace defaulted to an import-time Path.cwd(), so any Config built after a chdir carried a stale sandbox root (RUF009)."
+  },
+  "gaps": [
+    {
+      "id": "GAP-1",
+      "status": "closed",
+      "detail": "format/lint/typecheck now pass, pinned and enforced in CI."
+    },
+    {
+      "id": "GAP-2",
+      "status": "closed",
+      "detail": "evals/scoreboard.md recovered as the re-runnable evals/self_eval.py."
+    },
+    {
+      "id": "GAP-3",
+      "status": "closed",
+      "detail": "Scaffold adopted: .github/workflows/gates.yml and .pre-commit-config.yaml at the repository root. The CI harness job runs the package's own gate runner."
+    },
+    {
+      "id": "GAP-4",
+      "status": "partial",
+      "detail": "requirements-dev.txt pins the three gate tools exactly. Not a true lockfile \u2014 generating one needs network access unavailable in this sandbox \u2014 but the tools have no transitive dependencies worth locking."
+    },
+    {
+      "id": "GAP-5",
+      "status": "closed",
+      "detail": "POST /v1/run requires a constant-time bearer token; serve() refuses non-loopback binds without one."
+    },
+    {
+      "id": "GAP-6",
+      "status": "documented, by design",
+      "detail": "run_shell remains cwd-confined rather than isolated. Not fixable while it is a general shell; a denylist would give false assurance. Stated as a limitation; containment belongs at the container boundary."
+    },
+    {
+      "id": "GAP-7",
+      "status": "closed",
+      "detail": "decisions.md created, ADR-001..009."
+    },
+    {
+      "id": "GAP-8",
+      "status": "closed",
+      "detail": "templates/.../gates.sh detects uv/pnpm instead of assuming them, and scopes mypy to src/ when present."
+    }
+  ],
+  "unverified": [
+    "The pre-commit hooks are configuration only. pre-commit is not installed in this sandbox and cannot be fetched, so the YAML parses but the hooks have never run.",
+    "The GitHub Actions workflow has not executed. Both job bodies were run by hand locally and pass; the workflow syntax is valid YAML but untested by Actions itself.",
+    "No live Anthropic API call was made at any point. AnthropicClient is exercised through an injected fake transport, never against the real endpoint.",
+    "The Docker image was not built.",
+    "run_shell is cwd-confined, not isolated (ADR-006). Deliberate, not an oversight."
+  ],
+  "next_gate": "EVALUATE",
+  "defects_found_and_fixed_this_session": [
+    {
+      "id": "DEF-1",
+      "found_by": "ruff RUF009",
+      "severity": "medium",
+      "detail": "Config.workspace defaulted to Path.cwd() evaluated at class-creation time, so any Config built after a chdir carried the interpreter's start-up directory as its sandbox root. Now field(default_factory=Path.cwd)."
+    },
+    {
+      "id": "DEF-2",
+      "found_by": "end-to-end smoke test of the CLI binary (not caught by 215 unit tests)",
+      "severity": "high",
+      "detail": "A blank AGENTAGENT2_API_TOKEN left api_token == '' rather than None, so serve() bound non-loopback addresses without complaint and 'Authorization: Bearer ' (empty) authenticated against it via compare_digest. Net effect: a publicly bound RCE endpoint that reported itself as authenticated. .env.example ships the token blank, which is precisely the triggering configuration. Config.__post_init__ now collapses blank tokens to None. Verified against a live server: healthz 200, no/wrong/empty token 401, correct token 200."
+    }
+  ]
+}
