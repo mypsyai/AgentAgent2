@@ -1,0 +1,95 @@
+{
+  "archetype": "android-audio-coder",
+  "description": "Tools for Android C++/Kotlin audio development with DSP, JNI, SIMD, and GPU compute",
+  "tools": [
+    {
+      "name": "read_file",
+      "permissions": ["read"],
+      "extensions": [".cpp", ".h", ".hpp", ".kt", ".kts", ".glsl", ".comp", ".cmake", ".gradle", ".xml", ".json"]
+    },
+    {
+      "name": "write_file",
+      "permissions": ["write"],
+      "safety": "guarded"
+    },
+    {
+      "name": "edit_file",
+      "permissions": ["write"],
+      "safety": "safe"
+    },
+    {
+      "name": "run_shell",
+      "permissions": ["exec"],
+      "allowed_commands": [
+        "gradle", "gradlew", "./gradlew",
+        "cmake", "ninja", "make",
+        "adb", "ndk-build",
+        "clang++", "clang", "clang-format", "clang-tidy",
+        "git", "ls", "find", "grep", "cat", "mkdir", "cp", "mv"
+      ],
+      "blocked_patterns": ["rm -rf /", ":(){ :|:& };:"]
+    },
+    {
+      "name": "android_build",
+      "purpose": "Build Android project with Gradle",
+      "input_schema": {
+        "task": "string (assembleDebug, assembleRelease, etc)",
+        "module": "string (app, audio-core, etc)"
+      }
+    },
+    {
+      "name": "ndk_cmake",
+      "purpose": "Configure and build native code with CMake/NDK",
+      "input_schema": {
+        "abi": "string (arm64-v8a, x86_64, armeabi-v7a)",
+        "build_type": "string (Debug, Release, RelWithDebInfo)"
+      }
+    },
+    {
+      "name": "adb_logcat",
+      "purpose": "Stream logcat filtered to audio tags",
+      "input_schema": {
+        "tags": "string[] (AudioEngine, Oboe, AAudio)",
+        "level": "string (V, D, I, W, E)"
+      }
+    },
+    {
+      "name": "profile_audio",
+      "purpose": "Run Perfetto/Simpleperf trace for audio thread",
+      "input_schema": {
+        "duration_s": "int",
+        "output": "string (path to trace file)"
+      }
+    }
+  ],
+  "snippets": {
+    "simd": {
+      "neon_gain": "applyGain_neon(float*, int, float)",
+      "neon_interleave": "interleave_neon(const float*, const float*, float*, int)",
+      "neon_biquad": "BiquadNEON::process(float*, int)",
+      "neon_tanh": "tanh_approx_neon(float32x4_t)",
+      "neon_matmul4": "matmul4x4_neon(const float*, const float*, float*)",
+      "sse_gain": "applyGain_sse(float*, int, float)"
+    },
+    "vulkan": {
+      "fft_butterfly": "fft_radix2.comp",
+      "convolution": "convolution_ola.comp"
+    },
+    "gles": {
+      "waveform_peaks": "waveform_downsample.comp"
+    },
+    "jni": {
+      "create": "nativeCreate() -> jlong",
+      "destroy": "nativeDestroy(jlong)",
+      "set_param": "nativeSetParam(jlong, jint, jfloat)",
+      "process": "nativeProcess(jlong, jfloatArray, jfloatArray, jint)"
+    }
+  },
+  "references": {
+    "oboe": "https://github.com/google/oboe",
+    "rnbo": "https://cycling74.com/products/rnbo",
+    "supercollider": "https://supercollider.github.io/",
+    "vulkan_android": "https://developer.android.com/ndk/guides/graphics",
+    "neon_intrinsics": "https://developer.arm.com/architectures/instruction-sets/intrinsics"
+  }
+}

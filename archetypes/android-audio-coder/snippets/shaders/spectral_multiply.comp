@@ -1,0 +1,36 @@
+// PSYAI Spectral Multiplication (for convolution in frequency domain)
+// Compile: glslangValidator -V spectral_multiply.comp -o spectral_multiply.spv
+#version 450
+
+layout(local_size_x = 256) in;
+
+// Complex spectra as vec2 arrays
+layout(std430, binding = 0) readonly buffer InputA {
+    vec2 spectrumA[];
+};
+
+layout(std430, binding = 1) readonly buffer InputB {
+    vec2 spectrumB[];
+};
+
+layout(std430, binding = 2) writeonly buffer Output {
+    vec2 result[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint N;  // Number of complex bins
+};
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx >= N) return;
+    
+    vec2 a = spectrumA[idx];
+    vec2 b = spectrumB[idx];
+    
+    // Complex multiplication: (a.x + i*a.y) * (b.x + i*b.y)
+    result[idx] = vec2(
+        a.x * b.x - a.y * b.y,  // Real
+        a.x * b.y + a.y * b.x   // Imag
+    );
+}

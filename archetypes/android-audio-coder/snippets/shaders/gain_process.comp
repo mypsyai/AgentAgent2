@@ -1,0 +1,22 @@
+// PSYAI Simple Gain Processing (GPU baseline)
+// For comparison with CPU SIMD - GPU overhead often not worth it for simple ops
+// Compile: glslangValidator -V gain_process.comp -o gain_process.spv
+#version 450
+
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) buffer AudioData {
+    float data[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint numSamples;
+    float gain;
+};
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx >= numSamples) return;
+    
+    data[idx] *= gain;
+}

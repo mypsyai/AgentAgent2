@@ -1,0 +1,39 @@
+// PSYAI Waveform Peak Extraction for Visualization
+// Downsamples audio to min/max peaks per pixel
+// Compile: glslangValidator -V waveform_peaks.comp -o waveform_peaks.spv
+#version 450
+
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) readonly buffer AudioSamples {
+    float samples[];
+};
+
+layout(std430, binding = 1) writeonly buffer Peaks {
+    vec2 peaks[];  // (min, max) per pixel
+};
+
+layout(push_constant) uniform PushConstants {
+    uint totalSamples;
+    uint totalPixels;
+    uint samplesPerPixel;
+};
+
+void main() {
+    uint pixel = gl_GlobalInvocationID.x;
+    if (pixel >= totalPixels) return;
+    
+    uint start = pixel * samplesPerPixel;
+    uint end = min(start + samplesPerPixel, totalSamples);
+    
+    float minVal = 1.0;
+    float maxVal = -1.0;
+    
+    for (uint i = start; i < end; ++i) {
+        float s = samples[i];
+        minVal = min(minVal, s);
+        maxVal = max(maxVal, s);
+    }
+    
+    peaks[pixel] = vec2(minVal, maxVal);
+}

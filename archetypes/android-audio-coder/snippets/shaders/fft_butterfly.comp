@@ -1,0 +1,53 @@
+// PSYAI FFT Radix-2 Butterfly Stage
+// Compile: glslangValidator -V fft_butterfly.comp -o fft_butterfly.spv
+#version 450
+
+layout(local_size_x = 256) in;
+
+// Complex data as vec2 (real, imag)
+layout(std430, binding = 0) buffer Data {
+    vec2 data[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint N;       // FFT size
+    uint stage;   // Current stage (0 to log2(N)-1)
+    uint inverse; // 0 = forward, 1 = inverse
+};
+
+const float PI = 3.14159265358979323846;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    uint halfN = N >> 1;
+    
+    if (idx >= halfN) return;
+    
+    uint butterflySize = 1u << (stage + 1);
+    uint butterflyHalf = butterflySize >> 1;
+    uint group = idx / butterflyHalf;
+    uint pair = idx % butterflyHalf;
+    
+    uint i = group * butterflySize + pair;
+    uint j = i + butterflyHalf;
+    
+    // Twiddle factor
+    float angle = -2.0 * PI * float(pair) / float(butterflySize);
+    if (inverse != 0) angle = -angle;
+    
+    vec2 twiddle = vec2(cos(angle), sin(angle));
+    
+    // Load butterfly inputs
+    vec2 a = data[i];
+    vec2 b = data[j];
+    
+    // Complex multiply: b * twiddle
+    vec2 tb = vec2(
+        b.x * twiddle.x - b.y * twiddle.y,
+        b.x * twiddle.y + b.y * twiddle.x
+    );
+    
+    // Butterfly
+    data[i] = a + tb;
+    data[j] = a - tb;
+}
