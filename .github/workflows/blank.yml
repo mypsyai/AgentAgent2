@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, re
+          import json, shutil, zipfile
           from pathlib import Path
 
           root = Path(".")
@@ -34,35 +34,7 @@ jobs:
               "session-events-sesn_01FTDMmq4GUWQmgfm8eCLuJs (1).json",
               "session-events-sesn_01GCNDxoMN7MWiKkATeRvQuZ (1).json",
           ]
-          for l in logs:
-              if not (root / l).exists():
-                  print(f"Missing {l}; continuing best-effort.")
 
-          # 1) If zip exists, unpack baseline
-          import zipfile, shutil
-          zip_candidates = [root / "agentagent2-complete (1).zip", root / "agentagent2-complete.zip"]
-          z = next((p for p in zip_candidates if p.exists()), None)
-          if z:
-              tmp = root / ".recovery_tmp"
-              if tmp.exists():
-                  shutil.rmtree(tmp)
-              tmp.mkdir()
-              with zipfile.ZipFile(z) as zf:
-                  zf.extractall(tmp)
-              for candidate in ["agentagent2", "agentagent2-harness"]:
-                  src = tmp / candidate
-                  if src.exists():
-                      for p in src.rglob("*"):
-                          if p.is_file():
-                              rel = p.relative_to(src)
-                              dst = root / rel
-                              dst.parent.mkdir(parents=True, exist_ok=True)
-                              dst.write_bytes(p.read_bytes())
-              log_src = tmp / "agentagent_log.md"
-              if log_src.exists():
-                  (root / "agentagent_log.md").write_bytes(log_src.read_bytes())
-
-          # 2) Replay explicit write payloads from logs (when present)
           def norm(fp: str):
               fp = fp.replace("\\","/")
               if fp.startswith("/workspace/agentagent2/"):
@@ -71,6 +43,112 @@ jobs:
                   return fp[len("/workspace/AgentAgent2/"):]
               if fp.startswith("/workspace/"):
                   parts = fp.split("/")
+                  if len(parts) > 3:
+                      return "/".join(parts[3:])
+              return fp.lstrip("./")
+
+          # zip baseline
+          z = None
+          for cand in [root / "agentagent2-complete (1).zip", root / "agentagent2-complete.zip"]:
+              if cand.exists():
+                  z = cand
+                  break
+
+          if z:
+              tmp = root / ".recovery_tmp"
+              if tmp.exists():
+                  shutil.rmtree(tmp)
+              tmp.mkdir(parents=True, exist_ok=True)
+              with zipfile.ZipFile(z) as zf:
+                  zf.extractall(tmp)
+
+              for base in ["agentagent2", "agentagent2-harness"]:
+                  src = tmp / base
+                  if src.exists():
+                      for p in src.rglob("*"):
+                          if p.is_file():
+                              rel = p.relative_to(src)
+                              dst = root / rel
+                              dst.parent.mkdir(parents=True, exist_ok=True)
+                              dst.write_bytes(p.read_bytes())
+
+              log_src = tmp / "agentagent_log.md"
+              if log_src.exists():
+                  (root / "agentagent_log.md").write_bytes(log_src.read_bytes())
+
+          # replay write payloads from logs
+          written = 0
+          for lp in logs:
+              p = root / lp
+              if not p.exists():
+                  print(f"WARN missing log: {lp}")
+                  continue
+              try:
+                  events = json.loads(p.read_text(encoding="utf-8"))
+              except Exception as e:
+                  print(f"WARN cannot parse {lp}: {e}")
+                  continue
+
+              for e in events:
+                  if e.get("type") == "agent.tool_use" and e.get("name") == "write":
+                      inp = e.get("input") or {}
+                      fp = inp.get("file_path")
+                      ct = inp.get("content")
+                      if not fp or ct is None:
+                          continue
+                      rel = norm(fp)
+                      if not rel or rel.startswith("../"):
+                          continue
+                      out = root / rel
+                      out.parent.mkdir(parents=True, exist_ok=True)
+                      out.write_text(ct, encoding="utf-8")
+                      written += 1
+
+          for d in ["config","design","skills","style","templates","agentagent2-harness","evals"]:
+              (root/d).mkdir(parents=True, exist_ok=True)
+
+          (root / "RECOVERY_REPORT.md").write_text(
+              "# Recovery Report\n\n"
+              "- Method: zip baseline + session-log write replay\n"
+              f"- Replayed write events: {written}\n"
+              "- Note: truncated logs imply best-effort late-session recovery.\n",
+              encoding="utf-8"
+          )
+          print(f"Recovery completed. Replayed writes: {written}")
+          PY
+
+      - name: Commit recovery changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "recover: reconstruct AgentAgent2 from session artifacts"
+          git push origin HEAD:main
+
+      - name: Quick smoke (non-blocking)
+        shell: bash
+        run: |
+          set +e
+          python - <<'PY'
+          import pathlib, py_compile, traceback
+          files = [p for p in pathlib.Path(".").rglob("*.py") if ".git/" not in str(p)]
+          print(f"Python files: {len(files)}")
+          failures = 0
+          for f in files:
+              try:
+                  py_compile.compile(str(f), doraise=True)
+              except Exception:
+                  failures += 1
+                  print(f"FAIL {f}")
+                  traceback.print_exc(limit=1)
+          print(f"py_compile failures: {failures}")
+          PY                  parts = fp.split("/")
                   if len(parts) > 3:
                       return "/".join(parts[3:])
               return fp.lstrip("./")
