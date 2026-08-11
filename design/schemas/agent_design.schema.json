@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentagent2.dev/schemas/agent_design.schema.json",
+  "title": "Agent Design",
+  "description": "The contract every agent design produced by AgentAgent2 must satisfy before SCAFFOLD.",
+  "type": "object",
+  "required": ["identity", "operating_loop", "tools", "skills", "style", "evaluation", "safety"],
+  "additionalProperties": false,
+  "properties": {
+    "identity": {
+      "type": "object",
+      "required": ["name", "role", "success_criteria", "system_prompt_file"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "persona_traits": { "type": "array", "items": { "type": "string" } },
+        "success_criteria": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "acceptance_tests": { "type": "array", "items": { "type": "string" } },
+        "system_prompt_file": { "type": "string" }
+      }
+    },
+    "operating_loop": {
+      "type": "object",
+      "required": ["phases"],
+      "properties": {
+        "phases": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "gates": { "type": "object" }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["name", "purpose", "permissions", "safety"],
+        "properties": {
+          "name": { "type": "string" },
+          "purpose": { "type": "string" },
+          "input_schema": { "type": "object" },
+          "permissions": { "type": "array", "items": { "enum": ["read", "write", "exec", "network-read", "network-write", "orchestrate"] } },
+          "safety": { "enum": ["safe", "guarded", "privileged"] }
+        }
+      }
+    },
+    "skills": { "type": "array", "items": { "type": "string" } },
+    "mcp": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "capabilities", "enabled_by_default"],
+        "properties": {
+          "name": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "secrets_ref": { "type": "string" },
+          "enabled_by_default": { "type": "boolean" }
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "properties": {
+        "artifacts": { "type": "array", "items": { "type": "string" } },
+        "compaction_policy": { "type": "string" }
+      }
+    },
+    "style": {
+      "type": "object",
+      "required": ["core", "languages"],
+      "properties": {
+        "core": { "type": "string" },
+        "languages": { "type": "array", "items": { "enum": ["python", "typescript", "go", "rust", "bash"] }, "minItems": 1 }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "required": ["dimensions", "thresholds"],
+      "properties": {
+        "dimensions": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "thresholds": {
+          "type": "object",
+          "required": ["overall_min", "safety_min"],
+          "properties": {
+            "overall_min": { "type": "number", "minimum": 0, "maximum": 1 },
+            "safety_min": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["permission_matrix", "secrets_policy"],
+      "properties": {
+        "permission_matrix": { "type": "string" },
+        "secrets_policy": { "type": "string" },
+        "injection_defenses": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "flags_open": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://agentagent2.dev/schemas/agent.config.schema.json",
+  "name": "AgentAgent2",
+  "version": "1.0.0",
+  "description": "Meta-agent that designs and builds other Claude agents to a verified quality bar.",
+  "system_prompt_file": "AGENTAGENT2.system.md",
+  "models": {
+    "architect": {
+      "policy": "highest-capability reasoning model available at deploy time",
+      "used_for": ["INTENT", "PLAN", "DESIGN", "reviewer", "gate-failure triage"],
+      "temperature": 0.2,
+      "note": "FLAG-2: resolve to a concrete model ID at deploy time"
+    },
+    "worker": {
+      "policy": "fast, lower-cost model",
+      "used_for": ["bulk edits", "search", "boilerplate", "test scaffolding"],
+      "temperature": 0.0,
+      "note": "FLAG-2: resolve to a concrete model ID at deploy time"
+    },
+    "escalation_policy": "If a gate fails twice using the worker model, escalate that task to the architect model. If the architect fails twice, halt and notify the user with a diagnosis."
+  },
+  "autonomy": {
+    "mode": "plan-approval-then-autonomous",
+    "approval_gates": ["PLAN"],
+    "auto_approve_when_authority_delegated": true,
+    "destructive_action_policy": {
+      "confirm_before": ["delete outside build dir", "git force-push", "network writes", "package publish", "use of real credentials"],
+      "auto_allow": ["reversible in-sandbox file ops", "local commits", "read-only network"]
+    }
+  },
+  "budgets": {
+    "max_tokens_per_phase": { "soft": 60000, "hard": 120000 },
+    "max_tool_calls_per_phase": 200,
+    "wall_clock_hint": "Prefer parallel tool calls; offload long-running builds to subagents."
+  },
+  "environment": {
+    "sandbox": "devcontainer",
+    "devcontainer_ref": "templates/agent_project_scaffold/.devcontainer/devcontainer.json",
+    "network_policy": {
+      "egress": "default-deny",
+      "allowlist": ["declared package registries", "declared external APIs"]
+    },
+    "reproducibility": {
+      "lockfiles_committed": true,
+      "deterministic_builds": true,
+      "note": "FLAG-3: base image/registry is host-specific; ship spec + sane defaults"
+    }
+  },
+  "quality_gates": {
+    "format": { "rule": "formatter produces no diff", "blocking": true },
+    "lint": { "rule": "zero errors; warnings tracked", "blocking": true },
+    "typecheck": { "rule": "zero errors in strict mode", "blocking": true },
+    "test": { "rule": "all tests pass", "blocking": true },
+    "coverage": { "min": 0.85, "scope": "changed code", "blocking": true },
+    "security": { "rule": "no high/critical findings; no secrets in tree", "blocking": true },
+    "eval": { "overall_min": 0.9, "safety_min": 1.0, "blocking": true }
+  },
+  "logging": {
+    "log_file": "agentagent_log.md",
+    "mode": "append-only",
+    "timestamp": "UTC ISO-8601",
+    "decisions_file": "decisions.md"
+  },
+  "paths": {
+    "tools_manifest": "tools/tool_manifest.json",
+    "mcp_manifest": "config/mcp.servers.json",
+    "skills_dir": "skills/",
+    "style_dir": "style/",
+    "schemas_dir": "design/schemas/",
+    "outputs_dir": "outputs/"
+  }
+}

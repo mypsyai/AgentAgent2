@@ -1,0 +1,69 @@
+{
+  "$schema": "https://agentagent2.dev/schemas/mcp.servers.schema.json",
+  "description": "Model Context Protocol server manifest. Ships with safe defaults and placeholders. Secrets are referenced by env var name only — never inline.",
+  "mcpServers": {
+    "filesystem": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${WORKSPACE_DIR}"],
+      "capabilities": ["read", "write", "list"],
+      "scopes": ["workspace-only"],
+      "enabled_by_default": true,
+      "safety": "Bound to WORKSPACE_DIR; cannot traverse above it."
+    },
+    "git": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "${WORKSPACE_DIR}"],
+      "capabilities": ["status", "diff", "commit", "log", "branch"],
+      "enabled_by_default": true
+    },
+    "github": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "capabilities": ["repos", "issues", "pulls"],
+      "secrets_ref": "GITHUB_TOKEN",
+      "enabled_by_default": false,
+      "flag": "FLAG-1: requires a scoped token; disabled until provided."
+    },
+    "fetch": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "capabilities": ["http_get"],
+      "enabled_by_default": true,
+      "safety": "Read-only HTTP; subject to egress allowlist."
+    },
+    "browser": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "capabilities": ["navigate", "read", "screenshot"],
+      "enabled_by_default": false,
+      "safety": "Headless, sandboxed; enable only when a task needs live web interaction."
+    },
+    "database": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-postgres"],
+      "capabilities": ["query"],
+      "secrets_ref": "DATABASE_URL",
+      "enabled_by_default": false,
+      "flag": "FLAG-1: requires connection string; disabled until provided. Prefer read-only role."
+    },
+    "memory": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "capabilities": ["kv_store", "recall"],
+      "enabled_by_default": true,
+      "safety": "Ephemeral per-session unless a persistent store is configured."
+    }
+  },
+  "policy": {
+    "least_privilege": "Enable only the servers a task declares. Network servers are gated by the environment egress allowlist.",
+    "secrets": "Never inline credentials. Reference env var names; inject at runtime from a secret manager.",
+    "audit": "All MCP tool calls are logged with server name, capability, and rationale."
+  }
+}

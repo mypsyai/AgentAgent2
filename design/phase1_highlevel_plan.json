@@ -1,0 +1,128 @@
+{
+  "artifact": "AgentAgent2 High-Level Plan",
+  "phase": 1,
+  "version": "0.1-plan",
+  "generated_utc": "2026-08-07T07:57:00Z",
+  "authority_model": "fully_delegated",
+  "ambiguity_mode": "assume",
+  "north_star": "An agent-development agent (meta-agent) that designs AND builds other agents, producing the highest-quality, verifiably-correct code using best-known practices.",
+  "delta_from_agentagent1": {
+    "agentagent1_was": "A phased design-document generator. Output = JSON design specs. No code execution, no verification, no tools beyond reasoning.",
+    "agentagent2_is": "A full agent-engineering pipeline. Output = validated design + runnable, tested, linted, typed agent code. Adds tools, skills, MCP, sandboxed environments, verification loops, subagent orchestration, and evaluation.",
+    "key_shifts": [
+      "design-only -> design + build + verify + evaluate",
+      "single reasoning loop -> orchestrated multi-phase loop with quality gates",
+      "no tools -> curated least-privilege tool suite + MCP servers",
+      "prose conventions -> enforced coding-style engine (format/lint/typecheck/test/coverage)",
+      "monolithic -> subagent-capable (researcher/architect/coder/reviewer/tester)",
+      "implicit quality -> explicit evaluation harness for produced agents"
+    ]
+  },
+  "framework": {
+    "operating_loop": ["INTENT", "PLAN", "DESIGN", "SCAFFOLD", "IMPLEMENT", "VERIFY", "EVALUATE", "DELIVER", "DEBRIEF"],
+    "gates": {
+      "PLAN": "plan-approval gate (auto-approved when authority delegated)",
+      "VERIFY": "hard gate: format+lint+typecheck+tests+coverage must pass before DELIVER",
+      "EVALUATE": "produced agent must pass its eval suite above threshold"
+    },
+    "output_contract": "Every phase emits JSON validated against a published JSON Schema; DELIVER also emits runnable files."
+  },
+  "features": [
+    {
+      "id": "F1",
+      "name": "Dual-mode operation (Design + Build)",
+      "summary": "Runs as a spec generator OR a full builder that emits runnable, tested agent code; mode is selectable and can escalate from design to build.",
+      "priority": "P0"
+    },
+    {
+      "id": "F2",
+      "name": "Phased loop with quality gates",
+      "summary": "Nine-phase pipeline where VERIFY and EVALUATE are hard gates that block delivery of unproven code.",
+      "priority": "P0"
+    },
+    {
+      "id": "F3",
+      "name": "Least-privilege tool suite",
+      "summary": "Curated tools (file read/write/edit, shell, code search, web, VCS, test runner, package manager) with permission scoping and audit logging.",
+      "priority": "P0"
+    },
+    {
+      "id": "F4",
+      "name": "Agent-building Skills library",
+      "summary": "Reusable, model-invoked playbooks in Agent-Skills format (SKILL.md + scripts) for scaffolding, tool design, prompt engineering, evals, quality gates, MCP, orchestration, memory, safety.",
+      "priority": "P0"
+    },
+    {
+      "id": "F5",
+      "name": "MCP integration layer",
+      "summary": "Standardized external capabilities via Model Context Protocol servers (filesystem, git/github, fetch, browser, database, memory) with a declarative manifest.",
+      "priority": "P1"
+    },
+    {
+      "id": "F6",
+      "name": "Coding-style engine",
+      "summary": "Language-agnostic quality core + concrete style templates (Python, TS/JS, Go, Rust, Bash) enforced by formatter/linter/type-checker/tests with coverage thresholds.",
+      "priority": "P0"
+    },
+    {
+      "id": "F7",
+      "name": "Subagent orchestration",
+      "summary": "Spawns specialized subagents (researcher, architect, coder, reviewer, tester) with self-contained briefs and result synthesis.",
+      "priority": "P1"
+    },
+    {
+      "id": "F8",
+      "name": "Context & memory management",
+      "summary": "Plan file, scratchpad, external artifact store, and compaction policy to survive long builds within context limits.",
+      "priority": "P1"
+    },
+    {
+      "id": "F9",
+      "name": "Evaluation harness",
+      "summary": "Generates and runs an eval suite for every produced agent (task success, tool-call correctness, safety, regression) with a scoreboard.",
+      "priority": "P0"
+    },
+    {
+      "id": "F10",
+      "name": "Sandboxed reproducible environments",
+      "summary": "Containerized, network-scoped, reproducible dev environment (devcontainer/lockfiles) so builds and verifications are deterministic.",
+      "priority": "P1"
+    },
+    {
+      "id": "F11",
+      "name": "Safety & guardrails",
+      "summary": "Least privilege, secrets hygiene, destructive-action confirmation, prompt-injection resistance, and provenance/audit trail.",
+      "priority": "P0"
+    },
+    {
+      "id": "F12",
+      "name": "Structured output + schemas",
+      "summary": "Published JSON Schemas for plan/design/tool-manifest/eval so all artifacts are machine-validatable and diffable.",
+      "priority": "P1"
+    }
+  ],
+  "key_decisions": {
+    "runtime": "Claude models via an Agent-SDK-style harness with tool-use + MCP client support.",
+    "model_policy": "Tiered: a strong 'architect/reviewer' model + a fast 'worker' model for bulk edits/search; escalation on gate failure.",
+    "autonomy_default": "Plan-approval gate, then autonomous execution with mandatory VERIFY/EVALUATE gates before delivery.",
+    "deliverable": "Both a validated JSON design AND a runnable, tested file scaffold.",
+    "languages_supported": ["python", "typescript", "go", "rust", "bash"],
+    "quality_bar": "No deliverable ships unless format+lint+typecheck+tests pass and eval score >= threshold."
+  },
+  "risks": [
+    {"risk": "Scope creep / over-engineering produced agents", "mitigation": "YAGNI principle in style core; minimal viable agent first, extend on evidence."},
+    {"risk": "Tool over-permissioning", "mitigation": "least-privilege manifest + explicit destructive-action gate."},
+    {"risk": "Context exhaustion on long builds", "mitigation": "F8 memory policy + subagent offloading + compaction."},
+    {"risk": "Unverifiable 'looks-correct' code", "mitigation": "F2 hard VERIFY gate + F9 evals."}
+  ],
+  "deliverables_planned": [
+    "AGENTAGENT2.system.md (operating instructions / system prompt)",
+    "config/agent.config.json + config/mcp.servers.json",
+    "tools/tool_manifest.json",
+    "skills/* (9 Agent Skills)",
+    "style/* (core + 5 languages)",
+    "design/phase{1..4}.json + schemas",
+    "templates/ (agent project scaffold)",
+    "README.md"
+  ]
+}

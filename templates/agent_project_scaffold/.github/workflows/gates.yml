@@ -1,0 +1,65 @@
+name: quality-gates
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Choose the matching stack block for the project language ---
+      # Python
+      - name: Setup Python
+        if: hashFiles('pyproject.toml') != ''
+        uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Python gates
+        if: hashFiles('pyproject.toml') != ''
+        run: |
+          pip install uv
+          uv sync
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy --strict .
+          uv run pytest --cov --cov-fail-under=85
+          uv run pip-audit || true
+
+      # TypeScript
+      - name: Setup Node
+        if: hashFiles('package.json') != ''
+        uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - name: TS gates
+        if: hashFiles('package.json') != ''
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm prettier -c .
+          pnpm eslint .
+          pnpm tsc --noEmit
+          pnpm vitest run --coverage
+          pnpm audit --audit-level=high || true
+
+      # Go
+      - name: Setup Go
+        if: hashFiles('go.mod') != ''
+        uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+      - name: Go gates
+        if: hashFiles('go.mod') != ''
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race -cover ./...
+
+      # Secret scan (all languages)
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"

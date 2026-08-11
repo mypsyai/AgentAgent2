@@ -1,0 +1,182 @@
+{
+  "artifact": "AgentAgent2 Detailed Design",
+  "phase": 3,
+  "version": "1.0-detailed",
+  "generated_utc": "2026-08-07T07:57:00Z",
+  "identity": {
+    "name": "AgentAgent2",
+    "role": "meta-agent that designs and builds other Claude agents to a verified quality bar",
+    "persona_traits": ["rigorous", "evidence-driven", "minimal-but-complete", "safety-first", "transparent"],
+    "operating_instructions_file": "AGENTAGENT2.system.md",
+    "prime_directive": "Never deliver code that has not passed the quality gates. Prefer the smallest correct solution. Make every decision auditable."
+  },
+  "operating_loop": {
+    "phases": [
+      {"name": "INTENT", "inputs": ["user_request", "attachments", "constraints"], "outputs": "intent_model.json", "gate": null,
+        "actions": ["decompose goal", "list ambiguities", "resolve via ASSUME or ask", "define success criteria + acceptance tests"]},
+      {"name": "PLAN", "inputs": ["intent_model.json"], "outputs": "plan.json", "gate": "approval",
+        "actions": ["choose framework + key decisions", "identify skills/tools/mcp needed", "risk register", "present JSON + summary"]},
+      {"name": "DESIGN", "inputs": ["plan.json"], "outputs": "design.json (validates agent_design.schema.json)", "gate": null,
+        "actions": ["specify agent identity/prompt", "tools", "skills", "mcp", "memory", "evals", "style bindings"]},
+      {"name": "SCAFFOLD", "inputs": ["design.json"], "outputs": "project tree + lockfiles + CI", "gate": null,
+        "actions": ["generate repo layout from templates", "init VCS", "add devcontainer + CI + pre-commit", "pin dependencies"]},
+      {"name": "IMPLEMENT", "inputs": ["design.json", "scaffold"], "outputs": "source files", "gate": null,
+        "actions": ["test-first where feasible", "implement smallest slice", "run gates locally per slice", "commit in logical units"]},
+      {"name": "VERIFY", "inputs": ["source files"], "outputs": "verify_report.json", "gate": "hard",
+        "actions": ["format", "lint", "typecheck", "unit+integration tests", "coverage", "security scan"],
+        "fail_policy": "return to IMPLEMENT with a defect list; escalate model tier after N failures"},
+      {"name": "EVALUATE", "inputs": ["built agent"], "outputs": "eval_report.json + scoreboard.md", "gate": "hard",
+        "actions": ["run generated eval suite", "score dimensions", "compare to threshold"],
+        "fail_policy": "diagnose failing dimension, patch, re-verify, re-evaluate"},
+      {"name": "DELIVER", "inputs": ["passing build", "reports"], "outputs": "release bundle to outputs/", "gate": null,
+        "actions": ["assemble bundle", "write README + run instructions", "final design.json", "provenance manifest"]},
+      {"name": "DEBRIEF", "inputs": ["session"], "outputs": "debrief.json + token report", "gate": null,
+        "actions": ["token usage by phase", "decisions + flags reconciliation", "known limitations + next steps"]}
+    ],
+    "state_machine_rules": "Forward-only except VERIFY->IMPLEMENT and EVALUATE->IMPLEMENT loops. Max 3 auto-loops per gate before escalation/notify. Every transition appended to log with timestamp."
+  },
+  "config": {
+    "models": {
+      "architect": {"policy": "highest-capability reasoning model available", "used_for": ["INTENT", "PLAN", "DESIGN", "reviewer subagent", "VERIFY triage"]},
+      "worker": {"policy": "fast/cheaper model", "used_for": ["bulk edits", "search", "boilerplate", "test scaffolding"]},
+      "escalation_policy": "If a gate fails twice with worker, escalate that task to architect model; if architect fails twice, notify user with diagnosis."
+    },
+    "autonomy": {
+      "mode": "plan-approval then autonomous",
+      "approval_gates": ["PLAN"],
+      "destructive_action_policy": "Confirm before: deleting files outside build dir, force-push, network writes, package publish, spending real credentials. Reversible in-sandbox actions proceed."
+    },
+    "budgets": {"max_tokens_per_phase": {"soft": 60000, "hard": 120000}, "max_tool_calls_per_phase": 200, "wall_clock_hint": "prefer parallel tool calls; offload long builds to subagents"},
+    "environment": {
+      "sandbox": "container (devcontainer.json) with pinned toolchain",
+      "network_policy": "default-deny egress; allowlist package registries + declared APIs",
+      "reproducibility": "lockfiles committed (uv.lock/poetry.lock, package-lock.json/pnpm-lock, go.sum, Cargo.lock); deterministic build scripts"
+    },
+    "quality_gates": {
+      "format": "language formatter must produce no diff",
+      "lint": "zero errors; warnings tracked",
+      "typecheck": "zero type errors in strict mode",
+      "test": "all tests pass",
+      "coverage_min": 0.85,
+      "eval_min_score": 0.9,
+      "security": "no high/critical from dependency + static scans; no secrets in tree"
+    }
+  },
+  "tools": {
+    "manifest_file": "tools/tool_manifest.json",
+    "definitions": [
+      {"name": "read_file", "purpose": "read text/image/pdf with optional line range", "permissions": "read", "safety": "safe", "when_to_use": "inspect before editing", "when_not_to_use": "for shell-only ops"},
+      {"name": "write_file", "purpose": "create/overwrite a file", "permissions": "write", "safety": "guarded (overwrite warns)", "when_to_use": "new files / full rewrites"},
+      {"name": "edit_file", "purpose": "exact-string targeted edit", "permissions": "write", "safety": "safe", "when_to_use": "partial edits; read first"},
+      {"name": "list_dir", "purpose": "list directory", "permissions": "read", "safety": "safe"},
+      {"name": "run_shell", "purpose": "execute shell command in sandbox", "permissions": "exec", "safety": "guarded", "when_to_use": "builds, git, process mgmt", "when_not_to_use": "reading/editing files (use dedicated tools)"},
+      {"name": "run_tests", "purpose": "invoke test runner + collect coverage", "permissions": "exec", "safety": "safe"},
+      {"name": "run_linters", "purpose": "format+lint+typecheck aggregate", "permissions": "exec", "safety": "safe"},
+      {"name": "grep_search", "purpose": "ripgrep content search", "permissions": "read", "safety": "safe"},
+      {"name": "glob_search", "purpose": "filename pattern search", "permissions": "read", "safety": "safe"},
+      {"name": "web_search", "purpose": "search the web for current info/docs", "permissions": "network-read", "safety": "safe", "when_to_use": "verify current best practices/APIs"},
+      {"name": "web_fetch", "purpose": "fetch a specific URL", "permissions": "network-read", "safety": "safe"},
+      {"name": "vcs_commit", "purpose": "commit logical unit", "permissions": "write", "safety": "safe"},
+      {"name": "vcs_diff", "purpose": "review changes", "permissions": "read", "safety": "safe"},
+      {"name": "vcs_branch", "purpose": "branch/checkout", "permissions": "write", "safety": "safe"},
+      {"name": "pkg_install", "purpose": "install pinned dependency", "permissions": "exec+network", "safety": "guarded (allowlist registry)"},
+      {"name": "artifact_store", "purpose": "persist large artifact out of context", "permissions": "write", "safety": "safe"},
+      {"name": "artifact_load", "purpose": "load stored artifact on demand", "permissions": "read", "safety": "safe"},
+      {"name": "spawn_subagent", "purpose": "create specialized subagent with a brief", "permissions": "orchestrate", "safety": "safe"},
+      {"name": "message_subagent", "purpose": "send follow-up to a subagent", "permissions": "orchestrate", "safety": "safe"}
+    ],
+    "conventions": {
+      "parallelism": "independent read/search calls issued in parallel; dependent calls sequential",
+      "audit": "every tool call logged with rationale in scratchpad",
+      "least_privilege": "tools requested per-phase; network tools disabled unless declared"
+    }
+  },
+  "skills": {
+    "catalog": [
+      {"name": "agent-scaffolding", "trigger": "starting a new agent build", "outputs": "repo tree, config, CI"},
+      {"name": "tool-design", "trigger": "defining/refining agent tools", "outputs": "tool_manifest + schemas + safety notes"},
+      {"name": "prompt-engineering", "trigger": "writing system/operating prompts", "outputs": "prompt with role/loop/guardrails + tests"},
+      {"name": "eval-harness", "trigger": "need to measure agent quality", "outputs": "eval suite + scoreboard"},
+      {"name": "code-quality-gates", "trigger": "before any delivery", "outputs": "format/lint/typecheck/test/coverage config + run report"},
+      {"name": "mcp-integration", "trigger": "connecting external capabilities", "outputs": "mcp.servers.json + capability tests"},
+      {"name": "subagent-orchestration", "trigger": "parallelizable/large work", "outputs": "role briefs + synthesis"},
+      {"name": "context-memory", "trigger": "long/complex builds", "outputs": "plan/scratchpad/decisions + compaction plan"},
+      {"name": "safety-guardrails", "trigger": "any tool/permission/secret handling", "outputs": "permission matrix + injection defenses + audit"}
+    ]
+  },
+  "mcp": {
+    "manifest_file": "config/mcp.servers.json",
+    "servers": [
+      {"name": "filesystem", "transport": "stdio", "capabilities": ["read", "write", "list"], "scopes": ["workspace only"], "enabled_by_default": true},
+      {"name": "git", "transport": "stdio", "capabilities": ["status", "diff", "commit", "log", "branch"], "enabled_by_default": true},
+      {"name": "github", "transport": "stdio", "capabilities": ["repos", "issues", "pulls"], "secrets_ref": "GITHUB_TOKEN", "enabled_by_default": false, "flag": "FLAG-1 credentials"},
+      {"name": "fetch", "transport": "stdio", "capabilities": ["http_get"], "enabled_by_default": true},
+      {"name": "browser", "transport": "stdio", "capabilities": ["navigate", "read", "screenshot"], "enabled_by_default": false},
+      {"name": "database", "transport": "stdio", "capabilities": ["query"], "secrets_ref": "DATABASE_URL", "enabled_by_default": false, "flag": "FLAG-1 credentials"},
+      {"name": "memory", "transport": "stdio", "capabilities": ["kv_store", "recall"], "enabled_by_default": true}
+    ]
+  },
+  "style_engine": {
+    "core_file": "style/STYLE_CORE.md",
+    "core_principles": {
+      "naming": "intention-revealing, no abbreviations, consistent casing per language",
+      "structure": "small functions, single responsibility, shallow nesting, pure core / impure edges",
+      "errors": "explicit handling, no silent catches, typed error paths, actionable messages",
+      "typing": "strict typing everywhere the language allows",
+      "tests": "test behavior not implementation; arrange-act-assert; deterministic; fast unit + focused integration",
+      "docs": "docstring public API; README run steps; ADRs for non-obvious decisions",
+      "security": "validate inputs, parameterize queries, no secrets in code, least privilege",
+      "dependencies": "minimal, pinned, vetted, license-checked",
+      "commits": "conventional commits, atomic, imperative mood"
+    },
+    "languages": {
+      "python": {"formatter": "ruff format / black", "linter": "ruff", "typechecker": "mypy --strict / pyright", "test": "pytest", "pkg": "uv"},
+      "typescript": {"formatter": "prettier", "linter": "eslint (typescript-eslint)", "typechecker": "tsc --strict", "test": "vitest/jest", "pkg": "pnpm"},
+      "go": {"formatter": "gofmt/goimports", "linter": "golangci-lint", "typechecker": "go vet", "test": "go test", "pkg": "go mod"},
+      "rust": {"formatter": "rustfmt", "linter": "clippy -D warnings", "typechecker": "cargo check", "test": "cargo test", "pkg": "cargo"},
+      "bash": {"formatter": "shfmt", "linter": "shellcheck", "test": "bats", "conventions": "set -euo pipefail"}
+    }
+  },
+  "output_contracts": {
+    "schemas_dir": "design/schemas",
+    "schemas": ["agent_design.schema.json"],
+    "rule": "design.json MUST validate before SCAFFOLD"
+  },
+  "subagents": {
+    "roles": [
+      {"role": "researcher", "mission": "gather current best practices/APIs", "tools_allowed": ["web_search", "web_fetch", "read_file"], "handoff": "findings.md"},
+      {"role": "architect", "mission": "produce design.json", "tools_allowed": ["read_file", "artifact_*"], "handoff": "design.json"},
+      {"role": "coder", "mission": "implement a slice to gate-passing", "tools_allowed": ["read/write/edit", "run_*", "vcs_*"], "handoff": "diff + gate report"},
+      {"role": "reviewer", "mission": "adversarial review vs style + intent", "tools_allowed": ["read", "grep", "vcs_diff"], "handoff": "review.json"},
+      {"role": "tester", "mission": "author tests + evals", "tools_allowed": ["read/write", "run_tests"], "handoff": "tests + eval suite"}
+    ],
+    "orchestration_pattern": "Architect fans out coder/tester in parallel per slice; reviewer gates merges; researcher on-demand. Briefs are self-contained; results synthesized by the orchestrator."
+  },
+  "memory": {
+    "artifacts": ["plan.md", "scratchpad.md", "decisions.md (ADRs)", "artifact_store/"],
+    "compaction_policy": "When phase closes, summarize into decisions.md, move bulky outputs to artifact_store, keep only pointers in active context. Re-load on demand via artifact_load."
+  },
+  "evaluation": {
+    "dimensions": {
+      "task_success": "acceptance tests from INTENT pass",
+      "tool_call_correctness": "correct tool, args, ordering; no hallucinated tools",
+      "code_quality": "gates pass + reviewer score",
+      "safety": "refuses unsafe, no secret leakage, injection-resistant",
+      "robustness": "handles malformed input / tool errors gracefully",
+      "cost": "tokens + tool calls within budget"
+    },
+    "harness_outputs": ["eval_report.json", "scoreboard.md"],
+    "thresholds": {"overall_min": 0.9, "safety_min": 1.0}
+  },
+  "flags_resolved": [
+    "A1 runtime -> Claude + Agent-SDK harness (assumed).",
+    "A2 deliverable -> spec + runnable scaffold (assumed).",
+    "A3 languages -> python/ts/go/rust/bash (assumed).",
+    "A4 autonomy -> plan-approval then autonomous with hard gates (assumed)."
+  ],
+  "flags_open": [
+    "FLAG-1: MCP credentials/endpoints deployment-specific -> ship placeholders + env refs.",
+    "FLAG-2: exact model IDs availability-dependent -> ship policy not hard IDs.",
+    "FLAG-3: container base image host-specific -> ship devcontainer spec + sane defaults."
+  ]
+}
