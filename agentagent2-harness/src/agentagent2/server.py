@@ -3,10 +3,16 @@
 Endpoints:
     GET  /healthz  -> {"status": "ok", "version": ...}
     POST /v1/run   -> body {"task": str, "system": str?} -> agent result as JSON
+
+Security:
+    When ``Config.api_token`` is set, POST /v1/run requires ``Authorization: Bearer <token>``.
+    When no token is configured, ``serve()`` refuses to bind non-loopback addresses.
 """
 
 from __future__ import annotations
 
+import hmac
+import ipaddress
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -17,10 +23,18 @@ from .tools import default_registry
 from .version import __version__
 
 MAX_BODY_BYTES = 1_000_000
-DEFAULT_SYSTEM_PROMPT = (
-    "You are AgentAgent2, a careful coding assistant. Use the available tools to complete the "
-    "user's task. When you are done, reply with plain text and no further tool calls."
-)
+
+
+def _is_loopback(host: str) -> bool:
+    """Return True if host resolves to a loopback address."""
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        return True
+    try:
+        addr = ipaddress.ip_address(host)
+        return addr.is_loopback
+    except ValueError:
+        # DNS name or invalid - not provably loopback
+        return False
 
 
 def make_handler(config: Config) -> type[BaseHTTPRequestHandler]:
@@ -29,11 +43,12 @@ def make_handler(config: Config) -> type[BaseHTTPRequestHandler]:
     ``http.server`` instantiates the handler once per request, so configuration is captured via
     this closure rather than passed through the constructor.
     """
+    token = config.api_token
 
     class Handler(BaseHTTPRequestHandler):
         server_version = f"AgentAgent2/{__version__}"
 
-        def log_message(self, format: str, *args: object) -> None:  # noqa: A002 - stdlib signature
+        def log_message(self, fmt: str, *args: object) -> None:  # noqa: ARG002
             pass  # Quiet by default; wire to an AuditLog here if request logging is needed.
 
         def do_GET(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
@@ -46,6 +61,12 @@ def make_handler(config: Config) -> type[BaseHTTPRequestHandler]:
             if self.path != "/v1/run":
                 self._send_json(404, {"error": "not found"})
                 return
+
+            # Auth check BEFORE reading body (defense in depth)
+            if token is not None and not self._check_auth(token):
+                self._send_json(401, {"error": "unauthorized"})
+                return
+
             try:
                 payload = self._read_json()
             except ValueError as exc:
@@ -56,7 +77,15 @@ def make_handler(config: Config) -> type[BaseHTTPRequestHandler]:
             if not isinstance(task, str) or not task.strip():
                 self._send_json(400, {"error": "'task' must be a non-empty string."})
                 return
-            system = payload.get("system", DEFAULT_SYSTEM_PROMPT)
+
+            # Load system prompt from config (file or default)
+            try:
+                default_system = config.load_system_prompt()
+            except ValueError as exc:
+                self._send_json(500, {"error": f"System prompt error: {exc}"})
+                return
+
+            system = payload.get("system", default_system)
             if not isinstance(system, str):
                 self._send_json(400, {"error": "'system' must be a string when provided."})
                 return
@@ -83,6 +112,16 @@ def make_handler(config: Config) -> type[BaseHTTPRequestHandler]:
                     "steps": result.step_count,
                 },
             )
+
+        def _check_auth(self, expected: str) -> bool:
+            """Validate bearer token using constant-time comparison."""
+            auth = self.headers.get("Authorization", "")
+            if not auth.startswith("Bearer "):
+                return False
+            provided = auth[7:]  # Strip "Bearer "
+            if not provided:  # Empty token never authenticates
+                return False
+            return hmac.compare_digest(provided, expected)
 
         def _read_json(self) -> dict[str, object]:
             length_header = self.headers.get("Content-Length", "0")
@@ -116,10 +155,21 @@ def make_handler(config: Config) -> type[BaseHTTPRequestHandler]:
 
 
 def serve(*, host: str, port: int, config: Config) -> None:
-    """Start the HTTP API server and block until interrupted (Ctrl-C)."""
+    """Start the HTTP API server and block until interrupted (Ctrl-C).
+
+    Raises:
+        ValueError: If binding a non-loopback address without an API token configured.
+    """
+    if config.api_token is None and not _is_loopback(host):
+        raise ValueError(
+            f"Refusing to bind non-loopback address '{host}' without AGENTAGENT2_API_TOKEN. "
+            "The /v1/run endpoint executes shell commands and must be authenticated when exposed."
+        )
+
     handler = make_handler(config)
+    auth_status = "auth=required" if config.api_token else "auth=disabled (loopback only)"
     with ThreadingHTTPServer((host, port), handler) as httpd:
-        print(f"AgentAgent2 serving on http://{host}:{port} (mock={config.mock})")
+        print(f"AgentAgent2 serving on http://{host}:{port} (mock={config.mock}, {auth_status})")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
